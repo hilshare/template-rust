@@ -1,0 +1,33 @@
+# A Tock app for a HILShare board. Its own workspace: it builds for thumbv7em-none-eabi at the
+# fixed app addresses of the Nucleo-F411RE kernel (.cargo/config.toml).
+[workspace]
+
+[package]
+name = "my-app"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.92"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+libtock = { git = "https://github.com/tock/libtock-rs", rev = "b7f17591e43607474958ed7d117ba831e54e1017" }
+
+[build-dependencies]
+libtock_build_scripts = { git = "https://github.com/tock/libtock-rs", rev = "b7f17591e43607474958ed7d117ba831e54e1017" }
+
+# libtock-rs has no unwinder.
+[profile.dev]
+panic = "abort"
+
+# A cycle count of an unoptimized build tells nothing.
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+debug = true
+panic = "abort"
+
+# libtock selects its panic handler from `debug_assertions`. The release handler prints nothing.
+[profile.release.package.libtock]
+debug-assertions = true

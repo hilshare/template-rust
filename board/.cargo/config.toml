@@ -1,0 +1,26 @@
+# Cargo reads this file from the current directory upwards, not from `--manifest-path`.
+# Thus, start each build from this directory.
+
+[build]
+target = "thumbv7em-none-eabi"
+
+[target.thumbv7em-none-eabi]
+rustflags = ["-C", "relocation-model=static", "-C", "link-arg=-icf=all"]
+
+# Cargo selects the newest version of a crate that supports `rust-version`.
+[resolver]
+incompatible-rust-versions = "fallback"
+
+# libtock-rs apps link at fixed addresses. These are the addresses of the Nucleo-F411RE
+# kernel: app flash from 0x08040000 (with the TBF header) and app RAM from 0x20008000, which
+# leaves 16 KB unused above the kernel RAM.
+#
+# The MPU block of a process is a power of two, and it starts at a multiple of half its size,
+# so a block at 0x20008000 is 64 KB at most. The kernel takes 1128 bytes of the block, and
+# elf2tab adds 2048 bytes to the RAM of the ELF. Thus, a length of 60K gives a link error
+# below the 64408 bytes that preflight accepts.
+[env]
+LIBTOCK_LINKER_FLASH = "0x08040000"
+LIBTOCK_LINKER_FLASH_LENGTH = "255K"
+LIBTOCK_LINKER_RAM = "0x20008000"
+LIBTOCK_LINKER_RAM_LENGTH = "60K"

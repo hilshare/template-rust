@@ -1,0 +1,67 @@
+name: Board
+
+# This workflow builds the TAB on a hosted runner and runs it on a physical board through the
+# HILShare service. The job needs no secret.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to a pull request replaces its queued job. A job that does not start uses no run.
+concurrency:
+  group: board-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+    working-directory: board
+
+jobs:
+  board:
+    name: board
+    runs-on: ubuntu-24.04
+    # 20 minutes for the build, 60 for the queue and 12 for a job on the board.
+    timeout-minutes: 92
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      # rust-toolchain.toml gives the toolchain.
+      - name: Toolchain
+        run: rustup toolchain install
+      - name: Restore elf2tab
+        id: elf2tab
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/elf2tab
+          key: elf2tab-0.13.0-ubuntu-24.04
+      - name: elf2tab
+        if: ${{ steps.elf2tab.outputs.cache-hit != 'true' }}
+        run: cargo install elf2tab --version 0.13.0 --locked
+      - name: Build the TAB
+        run: ./build-tab.sh
+      # The ELF turns the `pc` of a fault into a source line.
+      - name: Upload the ELF
+        uses: actions/upload-artifact@v7
+        with:
+          name: my-app-elf
+          path: board/target/thumbv7em-none-eabi/release/my-app
+          retention-days: 7
+      # A pull request from a fork or from Dependabot gets no OIDC token. The job stays green with
+      # the build alone, and the app gets its board run after the merge.
+      - name: Run on the board
+        if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]') }}
+        uses: hilshare/action@v1
+        with:
+          app: board/target/tab/my-app.tab
+          board: nucleo-f411re
